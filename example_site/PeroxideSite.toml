@@ -1,0 +1,5 @@
+domain = "0.0.0.0:3000"
+
+[routes]
+"/" = {path = "index.html"}
+"/abc" = {path = "abc.html", is_templated = true}

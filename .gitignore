@@ -1,0 +1,3 @@
+/target
+/example_site/db.sqlite3
+Cargo.lock
