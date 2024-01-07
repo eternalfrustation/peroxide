@@ -1,28 +1,10 @@
-use axum::routing::post;
-use axum::{
-    extract::{Form, Query, State},
-    http::{StatusCode, Uri},
-    response::Html,
-    routing::get,
-    Router,
-};
 use log::error;
-use peroxide::auth::sign_in;
-use peroxide::auth::sign_up;
-use peroxide::config::{PeroxideConfig, SiteConfig};
-use peroxide::post::{create_post, delete_post, get_post, Post};
-use peroxide::site::init_site;
-use serde::{Deserialize, Serialize};
-use sqlx::{
-    query, query_as,
-    sqlite::{SqlitePool, SqlitePoolOptions},
-    Row,
-};
-use std::{collections::HashMap, fs};
-use tinytemplate::{format_unescaped, TinyTemplate};
 
-use comrak::{markdown_to_html, Options};
-use tower_http::services::ServeDir;
+use peroxide::config::PeroxideConfig;
+
+use peroxide::site::init_site;
+
+use std::fs;
 
 #[tokio::main]
 async fn main() {
