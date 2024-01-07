@@ -11,6 +11,7 @@ use peroxide::auth::sign_in;
 use peroxide::auth::sign_up;
 use peroxide::config::{PeroxideConfig, SiteConfig};
 use peroxide::post::{create_post, delete_post, get_post, Post};
+use peroxide::site::init_site;
 use serde::{Deserialize, Serialize};
 use sqlx::{
     query, query_as,

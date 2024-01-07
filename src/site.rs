@@ -1,4 +1,24 @@
-async fn init_site(path: String) {
+use std::fs;
+
+use axum::{
+    extract::State,
+    http::{StatusCode, Uri},
+    response::Html,
+    routing::{get, post},
+    Router,
+};
+use log::error;
+use sqlx::{query, query_as, sqlite::SqlitePoolOptions, SqlitePool};
+use tinytemplate::{format_unescaped, TinyTemplate};
+use tower_http::services::ServeDir;
+
+use crate::{
+    auth::{sign_in, sign_up},
+    config::SiteConfig,
+    post::{create_post, delete_post, get_post, Post},
+};
+
+pub async fn init_site(path: String) {
     let mut site_config: SiteConfig = match toml::from_str(
         match fs::read_to_string(format!("{}/PeroxideSite.toml", path)) {
             Ok(t) => t,
