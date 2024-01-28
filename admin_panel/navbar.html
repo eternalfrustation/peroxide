@@ -1,0 +1,15 @@
+<ul>
+  <strong>
+    Admin Panel
+  </strong>
+</ul>
+<ul>
+  <li hx-get="/admin/partial/blogs" hx-push-url="/admin?path=blogs" hx-target="main"><a> Blog Posts </a></li>
+  <li hx-get="/admin/partial/templates" hx-push-url="/admin?path=templates" hx-target="main"><a>Settings</a></li>
+  <li hx-get="/admin/partial/post" hx-push-url="/admin?path=post" hx-target="main"><a> Create a blog</a></li>
+  <li hx-get="/admin/partial/settings" hx-push-url="/admin?path=settings" hx-target="main"><a>Settings</a></li>
+</ul>
+<ul>
+  <li> <img src="/user/pfp.png"> <span id="name">{user.name}
+    </span></li>
+</ul>

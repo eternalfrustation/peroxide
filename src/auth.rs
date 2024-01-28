@@ -6,6 +6,7 @@ use axum::{
     async_trait,
     extract::{FromRequestParts, State},
     http::{request::Parts, StatusCode},
+    response::Redirect,
     Form,
 };
 
@@ -55,12 +56,30 @@ pub struct User {
     pub salt: Vec<u8>,
     pub sh_pass: Vec<u8>,
     pub email: String,
+    pub rank: Rank,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Rank {
+    #[default]
+    User,
+    Admin,
+}
+
+impl From<String> for Rank {
+    fn from(value: String) -> Self {
+        if value.eq("Admin") {
+            Self::Admin
+        } else {
+            Self::User
+        }
+    }
 }
 
 // implementing the "Auto Auth thing", slap a User in the arguments to a handler
 // and BAM, you get Auth
 #[async_trait]
-impl FromRequestParts<SiteConfig> for User {
+impl<'a> FromRequestParts<SiteConfig> for User {
     type Rejection = (StatusCode, &'static str);
 
     async fn from_request_parts(
@@ -210,6 +229,7 @@ impl TryFrom<UserSignUp> for User {
             salt: Vec::from(salt),
             sh_pass: salted_hash,
             email: value.email,
+            rank: Rank::User,
         })
     }
 }
@@ -227,11 +247,11 @@ pub struct UserSignIn {
     pass: String,
 }
 
-pub async fn sign_in(
+pub async fn sign_in<'a>(
     cookie_jar: CookieJar,
     State(state): State<SiteConfig>,
     Form(user_resp): Form<UserSignIn>,
-) -> Result<CookieJar, (StatusCode, String)> {
+) -> Result<(CookieJar, Redirect), (StatusCode, String)> {
     let user = match query_as!(
         User,
         "select * from users where username = ?",
@@ -258,13 +278,16 @@ pub async fn sign_in(
                 return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
             }
             Ok(s) => {
-                return Ok(cookie_jar.add(
-                    Cookie::build(("jwt-token", s))
-                        .http_only(true)
-                        .secure(true)
-                        .same_site(SameSite::Lax)
-                        .max_age(Duration::from_secs(60 * 60 * 12).try_into().unwrap())
-                        .path("/"),
+                return Ok((
+                    cookie_jar.add(
+                        Cookie::build(("jwt-token", s))
+                            .http_only(true)
+                            .secure(true)
+                            .same_site(SameSite::Lax)
+                            .max_age(Duration::from_secs(60 * 60 * 12).try_into().unwrap())
+                            .path("/"),
+                    ),
+                    Redirect::to("/admin"),
                 ));
             }
         };
@@ -282,11 +305,11 @@ pub struct UserSignUp {
     email: String,
 }
 
-pub async fn sign_up(
+pub async fn sign_up<'a>(
     cookie_jar: CookieJar,
     State(state): State<SiteConfig>,
     Form(user_resp): Form<UserSignUp>,
-) -> Result<CookieJar, (StatusCode, String)> {
+) -> Result<(CookieJar, Redirect), (StatusCode, String)> {
     let user: User = user_resp.try_into().unwrap();
     match sqlx::query!("insert into users (name, username, profile_pic, salt, sh_pass, email) values($1, $2, $3, $4, $5, $6)", user.name, user.username, user.profile_pic, user.salt, user.sh_pass, user.email).execute(&state.db_pool.unwrap()).await {
         Err(e) => {
@@ -301,14 +324,14 @@ pub async fn sign_up(
                     return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
                 }
                 Ok(s) => {
-                    return Ok(cookie_jar
+                    return Ok((cookie_jar
                         .add(Cookie::build(("jwt-token", s))
                             .http_only(true)
                             .secure(true)
                             .same_site(SameSite::None)
                             .max_age(Duration::from_secs(60 * 60 * 12).try_into().unwrap())
                             .path("/")
-                        ));
+                        ), Redirect::to("/admin")));
                 }
             };
         }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "CREATE TABLE IF NOT EXISTS users(\n        \tsalt blob unique not null,\n        \tname text not null,\n        \tusername text unique not null primary key,\n        \tprofile_pic text,\n        \tsh_pass blob not null,\n        \temail text not null unique,\n            rank text not null\n        ) STRICT",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "ab2031906426008e6de378bceefc77ccc570d9625ac503e02210c002744293f9"
+}

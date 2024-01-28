@@ -1,13 +1,24 @@
+use std::{borrow::Cow, error::Error, fs, hash::Hash, io::Write};
+
 use axum::{
-    extract::{Query, State},
+    extract::{FromRef, Query, State},
     http::StatusCode,
-    response::Html,
+    response::{Html, Redirect},
     Form,
 };
+use axum_extra::handler::HandlerCallWithExtractors;
 use comrak::Options;
 use log::error;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
-use sqlx::{query, query_as};
+use sqlx::{
+    database::HasValueRef,
+    prelude::{FromRow, Type},
+    query, query_as,
+    sqlite::SqliteTypeInfo,
+    Database, Decode, Encode, Sqlite, Value, ValueRef,
+};
+use tinytemplate_async::{format_unescaped, TinyTemplate};
 
 use crate::{auth::User, config::SiteConfig};
 
@@ -15,23 +26,131 @@ use crate::{auth::User, config::SiteConfig};
 pub struct PostCreateRequest {
     name: String,
     content: String,
-    path: String,
+    #[serde(default)]
+    tags: Option<VecStr>,
 }
 
-pub async fn create_post(
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
+pub struct VecStr {
+    pub data: Vec<String>,
+}
+
+impl Type<Sqlite> for VecStr {
+    fn type_info() -> <Sqlite as Database>::TypeInfo {
+        <&[u8] as Type<Sqlite>>::type_info()
+    }
+
+    fn compatible(ty: &SqliteTypeInfo) -> bool {
+        <&[u8] as Type<Sqlite>>::compatible(ty) || <Vec<u8> as Type<Sqlite>>::compatible(ty)
+    }
+}
+
+impl<'r> Encode<'r, Sqlite> for VecStr
+where
+    &'r [u8]: Encode<'r, Sqlite>,
+{
+    fn encode_by_ref(
+        &self,
+        buf: &mut <Sqlite as sqlx::database::HasArguments<'r>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
+        if self.data.is_empty() {
+            return sqlx::encode::IsNull::Yes;
+        }
+        let mut bytes = Vec::new();
+        for string in self.data.iter() {
+            bytes
+                .write_all(&(string.as_bytes().len() as u64).to_le_bytes())
+                .unwrap();
+            bytes.write_all(string.as_bytes()).unwrap();
+        }
+        let byte_slice: Box<[u8]> = Box::from(bytes.as_slice());
+        <Box<[u8]> as Encode<Sqlite>>::encode(byte_slice, buf)
+    }
+}
+// DB is the database driver
+// `'r` is the lifetime of the `Row` being decoded
+impl<'r, DB: Database> Decode<'r, DB> for VecStr
+where
+    Vec<u8>: Decode<'r, DB>,
+{
+    fn decode(
+        value: <DB as HasValueRef<'r>>::ValueRef,
+    ) -> Result<VecStr, Box<dyn Error + 'static + Send + Sync>> {
+        // Decoding from a Rows of String format
+        let ros = <Vec<u8> as Decode<DB>>::decode(value)?;
+        let mut result: Vec<String> = Vec::new();
+        let mut idx = 0;
+        while idx < ros.len() {
+            let length = u64::from_le_bytes(match ros.get(idx..(idx + 8)) {
+                Some(x) => x.try_into().unwrap(),
+                None => {
+                    return Err(Box::new(sqlx::Error::TypeNotFound {
+                        type_name: "Row of String".to_string(),
+                    }))
+                }
+            });
+            idx += 8;
+            result.push(
+                String::from_utf8(match ros.get(idx..(idx + length as usize)) {
+                    Some(x) => x.to_vec(),
+                    None => {
+                        return Err(Box::new(sqlx::Error::TypeNotFound {
+                            type_name: "Row of String".to_string(),
+                        }))
+                    }
+                })
+                .unwrap(),
+            );
+            idx += length as usize;
+        }
+        Ok(VecStr { data: result })
+    }
+}
+
+impl From<Vec<u8>> for VecStr {
+    fn from(ros: Vec<u8>) -> Self {
+        // Decoding from a Rows of String format
+        let mut result: Vec<String> = Vec::new();
+        let mut idx = 0;
+        while idx < ros.len() {
+            let length = u64::from_le_bytes(match ros.get(idx..(idx + 8)) {
+                Some(x) => x.try_into().unwrap(),
+                None => {
+                    log::warn!("Error while reading string length");
+                    [0u8; 8]
+                }
+            });
+            idx += 8;
+            result.push(
+                String::from_utf8(match ros.get(idx..(idx + length as usize)) {
+                    Some(x) => x.to_vec(),
+                    None => {
+                        log::warn!("Error while reading string content");
+                        Vec::new()
+                    }
+                })
+                .unwrap(),
+            );
+            idx += length as usize;
+        }
+        VecStr { data: result }
+    }
+}
+
+pub async fn create_post<'a>(
     State(config): State<SiteConfig>,
     user: User,
     form: Form<PostCreateRequest>,
-) -> Result<String, StatusCode> {
+) -> Result<Redirect, StatusCode> {
     let content = comrak::markdown_to_html(
         ammonia::clean(form.content.as_str()).as_str(),
         &Options::default(),
     );
     match query!(
-        "INSERT INTO posts(name, content, path, owner) VALUES(?1, ?2, ?3, ?4)",
+        "INSERT INTO posts(name, content, tags, owner) VALUES(?1, ?2, ?3, ?4)",
         form.name,
         content,
-        form.path,
+        form.tags,
         user.username
     )
     .execute(&config.db_pool.clone().unwrap())
@@ -41,7 +160,7 @@ pub async fn create_post(
             error!("Error while inserting a post: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
-        Ok(_) => Ok("Success".to_string()),
+        Ok(_) => Ok(Redirect::to("/admin?path=blogs")),
     }
 }
 
@@ -50,10 +169,10 @@ pub struct PostDeleteRequest {
     id: i64,
 }
 
-pub async fn delete_post(
+pub async fn delete_post<'a>(
     State(config): State<SiteConfig>,
     user: User,
-    form: Form<PostDeleteRequest>,
+    form: Query<PostDeleteRequest>,
 ) -> Result<String, StatusCode> {
     match query!(
         "DELETE FROM posts WHERE id = ? AND owner = ?",
@@ -63,9 +182,9 @@ pub async fn delete_post(
     .execute(&config.db_pool.clone().unwrap())
     .await
     {
-        Ok(_) => Ok("Success".to_string()),
+        Ok(_) => Ok("Deleted".to_string()),
         Err(e) => {
-            error!("Error while inserting a post: {}", e);
+            error!("Error while deleting a post: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -73,28 +192,34 @@ pub async fn delete_post(
 
 #[derive(Serialize, Deserialize)]
 pub struct PostGetRequest {
+    #[serde(default = "one")]
     id: i64,
 }
 
-pub async fn get_post(
+fn one() -> i64 {
+    1
+}
+
+pub async fn get_post<'a>(
     query: Query<PostGetRequest>,
-    _user: User,
     State(config): State<SiteConfig>,
 ) -> Result<Html<String>, StatusCode> {
     match query_as!(
         Post,
-        "SELECT id, name, content, date, path, owner FROM posts WHERE id IS ?",
+        "SELECT id, name, content, date, tags, owner, status FROM posts WHERE id IS ?",
         query.id
     )
     .fetch_one(&config.db_pool.unwrap())
     .await
     {
         Ok(post) => {
-            let mut tt = tinytemplate::TinyTemplate::new();
-            let full_path = format!("{}/{}", post.path, post.name);
-            tt.add_template(full_path.as_str(), post.content.as_str())
+            let mut tt: TinyTemplate = TinyTemplate::new();
+            tt.set_default_formatter(&format_unescaped);
+            tt.add_formatter("increment".to_string(), increment);
+            let post_template = &fs::read_to_string("data/post.html").unwrap();
+            tt.add_template("default".to_string(), post_template.clone())
                 .unwrap();
-            match tt.render(full_path.as_str(), &post) {
+            match tt.render("default", &post) {
                 Ok(html) => Ok(Html(html)),
                 Err(e) => {
                     log::error!("{e}");
@@ -110,11 +235,46 @@ pub async fn get_post(
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum PostStatus {
+    Draft,
+    Published,
+}
+
+impl From<String> for PostStatus {
+    fn from(value: String) -> Self {
+        if value.eq("Published") {
+            Self::Published
+        } else {
+            Self::Draft
+        }
+    }
+}
+
+#[derive(Serialize, FromRow, Deserialize, Clone, Debug)]
 pub struct Post {
     pub id: i64,
     pub name: String,
     pub content: String,
     pub date: i64,
-    pub path: String,
+    pub tags: VecStr,
     pub owner: String,
+    pub status: PostStatus,
+}
+
+fn increment(
+    value: &serde_json::Value,
+    string: &mut String,
+) -> tinytemplate_async::error::Result<()> {
+    let num = match value {
+        serde_json::Value::Number(num) => num,
+        a => {
+            return Err(tinytemplate_async::error::Error::ParseError {
+                msg: format!("Could not increment the non number input: {}", a).to_string(),
+                line: 0,
+                column: 0,
+            })
+        }
+    };
+    string.push_str((num.as_f64().unwrap() + 1.0).to_string().as_str());
+    Ok(())
 }

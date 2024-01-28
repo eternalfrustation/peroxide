@@ -1,3 +1,5 @@
+#![feature(exact_size_is_empty)]
+
 use log::error;
 
 use peroxide::config::PeroxideConfig;

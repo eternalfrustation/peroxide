@@ -1,0 +1,21 @@
+<section>
+  <h2>
+    Blog Posts
+  </h2>
+  <input type="search" id="search" name="search" placeholder="Search">
+  <button class="outline">Add Post</button>
+  <table>
+    <thead>
+      <tr>
+        <th> Title </th>
+        <th> Author </th>
+        <th> Publication Date </th>
+        <th> Status </th>
+        <th> Tags </th>
+        <th> Actions </th>
+      </tr>
+    </thead>
+    <tbody hx-get="/api/post" hx-trigger="load">
+    </tbody>
+  </table>
+</section>

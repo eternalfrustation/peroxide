@@ -2,4 +2,6 @@ domain = "0.0.0.0:3000"
 
 [routes]
 "/" = {path = "index.html"}
-"/abc" = {path = "abc.html", is_templated = true}
+"/blog" = {path = "blog.html"}
+"/sign_in" = {path = "sign_in.html"}
+"/sign_up" = {path = "sign_up.html"}

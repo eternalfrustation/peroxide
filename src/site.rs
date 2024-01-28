@@ -1,7 +1,13 @@
-use std::fs;
+use serde::*;
+use std::{
+    collections::HashMap,
+    fs,
+    os::unix::fs::DirEntryExt,
+    sync::{Arc, RwLock},
+};
 
 use axum::{
-    extract::State,
+    extract::{path, Path, Query, State},
     http::{StatusCode, Uri},
     response::Html,
     routing::{get, post},
@@ -9,12 +15,12 @@ use axum::{
 };
 use log::error;
 use sqlx::{query, query_as, sqlite::SqlitePoolOptions, SqlitePool};
-use tinytemplate::{format_unescaped, TinyTemplate};
+use tinytemplate_async::{format_unescaped, TinyTemplate};
 use tower_http::services::ServeDir;
 
 use crate::{
-    auth::{sign_in, sign_up},
-    config::SiteConfig,
+    auth::{sign_in, sign_up, User},
+    config::{PagePath, SiteConfig},
     post::{create_post, delete_post, get_post, Post},
 };
 
@@ -41,6 +47,11 @@ pub async fn init_site(path: String) {
             return;
         }
     };
+    site_config.site_path = path.clone();
+    site_config.templates = Arc::from(RwLock::new(setup_templates(
+        &site_config.routes,
+        path.clone(),
+    )));
     let db_conn_url = format!("sqlite://{}/{}", path, site_config.db_filename);
     log::info!("Beginning Connection to {db_conn_url}");
     let pool: SqlitePool = {
@@ -67,7 +78,8 @@ pub async fn init_site(path: String) {
         	username text unique not null primary key,
         	profile_pic text,
         	sh_pass blob not null,
-        	email text not null unique
+        	email text not null unique,
+            rank text not null
         ) STRICT"
     )
     .execute(&pool)
@@ -132,8 +144,130 @@ pub async fn init_site(path: String) {
     };
 }
 
+fn setup_templates(routes: &HashMap<String, PagePath>, site_path: String) -> TinyTemplate {
+    let mut templates = TinyTemplate::new();
+    let admin_template = fs::read_to_string("data/admin.templ.html").unwrap();
+    templates
+        .add_template("admin".to_string(), admin_template)
+        .unwrap();
+    for ele in fs::read_dir("admin_panel/").unwrap() {
+        match ele {
+            Ok(entry) => {
+                if !entry.path().is_file() {
+                    continue;
+                }
+                let path = entry.path();
+                let path = path.strip_prefix("admin_panel/").unwrap();
+                let content = fs::read_to_string(entry.path()).unwrap();
+                let path = match path.extension() {
+                    Some(ext) => path
+                        .to_str()
+                        .unwrap()
+                        .to_string()
+                        .strip_suffix(ext.to_str().unwrap())
+                        .unwrap()
+                        .to_string(),
+                    None => path.to_str().unwrap().to_string(),
+                };
+                templates.add_template(path, content).unwrap();
+            }
+            Err(e) => {
+                log::error!("{}", e);
+                continue;
+            }
+        }
+    }
+    for (name, path) in routes {
+        log::info!("Found template file {name}");
+        let content =
+            fs::read_to_string(format!("{site_path}/templates/{}", path.path.clone())).unwrap();
+        templates
+            .add_template(format!("pages{name}"), content)
+            .unwrap();
+        match path.template.clone() {
+            Some(template_path) => {
+                let content =
+                    fs::read_to_string(format!("{site_path}/templates/{template_path}")).unwrap();
+                templates
+                    .add_template(format!("pages/{name}.templ"), content)
+                    .unwrap();
+            }
+            None => {}
+        }
+    }
+    templates
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct AdminPageTempl {
+    #[serde(default = "default_admin_page")]
+    path: String,
+    #[serde(skip_deserializing)]
+    content: Option<String>,
+    #[serde(skip_deserializing)]
+    user: User,
+}
+
+fn default_admin_page() -> String {
+    "blogs".to_string()
+}
+
+async fn handle_admin_panel(
+    page: Query<AdminPageTempl>,
+    user: User,
+    State(config): State<SiteConfig>,
+) -> Result<Html<String>, StatusCode> {
+    match fs::read_to_string(format!("admin_panel/{}.html", page.path)) {
+        Ok(s) => {
+            let mut admin_page_content = page.0.clone();
+            admin_page_content.content = Some(s);
+            admin_page_content.user = user;
+            Ok(Html(
+                config
+                    .templates
+                    .read()
+                    .unwrap()
+                    .render("admin", &admin_page_content)
+                    .unwrap(),
+            ))
+        }
+        Err(e) => {
+            error!("{:?}", e);
+            Err(StatusCode::NOT_FOUND)
+        }
+    }
+}
+
+async fn handle_admin_panel_partial(
+    Path(page): Path<String>,
+    user: User,
+    State(config): State<SiteConfig>,
+) -> Result<Html<String>, StatusCode> {
+    match config.templates.read().unwrap().render(
+        page.clone().as_str(),
+        &(AdminPageTempl {
+            path: page,
+            content: None,
+            user,
+        }),
+    ) {
+        Ok(rendered) => Ok(Html(rendered)),
+        Err(e) => {
+            log::error!("{e}");
+            Err(StatusCode::NOT_FOUND)
+        }
+    }
+}
+
 fn setup_routes(config: &SiteConfig) -> Router {
-    Router::new()
+    let router = Router::new()
+        .nest(
+            "/admin",
+            Router::new()
+                .nest_service("/static", ServeDir::new("admin_panel/static"))
+                .route("/partial/:page", get(handle_admin_panel_partial))
+                .route("/", get(handle_admin_panel)),
+        )
         .nest(
             "/api",
             Router::new()
@@ -141,78 +275,156 @@ fn setup_routes(config: &SiteConfig) -> Router {
                 .route("/sign_in", post(sign_in))
                 .route("/sign_up", post(sign_up)),
         )
-        .nest_service("/static", ServeDir::new("static"))
-        .fallback(get(page_handler))
-        .with_state(config.clone())
+        .nest_service(
+            "/static",
+            ServeDir::new(format!("{}/static", config.site_path)),
+        );
+    let mut site_router = Router::new();
+    for (route, path) in config.routes.iter() {
+        match path.template.clone() {
+            Some(_) => {
+                site_router = site_router.route(
+                    format!("{}/:page", route).as_str(),
+                    get(handle_page_templated),
+                )
+            }
+            None => site_router = site_router.route(route, get(handle_page)),
+        }
+    }
+    router.nest("", site_router).with_state(config.clone())
 }
 
-#[axum::debug_handler]
-async fn page_handler(
+pub async fn handle_page_templated(
     uri: Uri,
+    Path(page): Path<String>,
     State(config): State<SiteConfig>,
-) -> Result<Html<String>, (StatusCode, Html<String>)> {
-    let page_path = match config.routes.get(uri.path()) {
+) -> Result<Html<String>, StatusCode> {
+    let path = match match uri.path().strip_prefix('/') {
         Some(s) => s,
-        None => {
-            let slash_path = uri.path().rfind('/');
-            let path = match slash_path {
-                Some(idx) => &uri.path()[0..idx],
-                None => "",
-            };
-            match config.routes.get(path) {
-                Some(s) => s,
-                None => {
-                    return Err((
-                        StatusCode::NOT_FOUND,
-                        Html("<h1>Not found</h1>".to_string()),
-                    ));
-                }
-            }
-        }
+        None => "",
     }
-    .clone();
-    match fs::read_to_string(format!("templates/{}", page_path.path)) {
-        Ok(s) => {
-            if !page_path.is_templated {
-                return Ok(Html(s));
-            }
-            let name = uri.path().split('/').rev().next().unwrap();
-            let slash_path = uri.path().rfind('/');
-            let path = match slash_path {
-                Some(idx) => &uri.path()[0..idx],
-                None => "",
-            };
-            match query_as!(
-                Post,
-                "SELECT id, name, content, date, path, owner FROM posts WHERE path IS ? AND name IS ?",
-                path,
-                name
-            )
-            .fetch_one(&config.db_pool.unwrap())
-            .await
-            {
-                Ok(post) => {
-                    let mut tt: TinyTemplate<'_> = tinytemplate::TinyTemplate::new();
-                    tt.set_default_formatter(&format_unescaped);
-                    let full_path = format!("{}/{}", post.path, post.name);
-                    tt.add_template(full_path.as_str(), s.as_str()).unwrap();
-                    match tt.render(full_path.as_str(), &post) {
-                        Ok(html) => Ok(Html(html)),
-                        Err(e) => {
-                            log::error!("{e}");
-                            Err((StatusCode::NOT_FOUND, Html("Not Found".to_string())))
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::warn!("{e}");
-                    Err((StatusCode::NOT_FOUND, Html(e.to_string())))
-                }
-            }
-        }
+    .strip_suffix(page.as_str())
+    {
+        Some(s) => s,
+        None => "",
+    };
+    let name = format!("pages/{}.templ", path);
+
+    let post = match query_as!(
+        Post,
+        "SELECT id, name, content, date, tags, owner, status FROM posts WHERE name IS ?",
+        name
+    )
+    .fetch_one(&config.db_pool.unwrap())
+    .await
+    {
+        Ok(post) => post,
         Err(e) => {
             log::error!("{}", e);
-            Err((StatusCode::NOT_FOUND, Html(e.to_string())))
+            return Err(StatusCode::NOT_FOUND);
+        }
+    };
+    match config.templates.read().unwrap().render(path, &post) {
+        Ok(x) => Ok(Html(x)),
+        Err(e) => {
+            log::error!("{e}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
+pub async fn handle_page(
+    uri: Uri,
+    State(config): State<SiteConfig>,
+) -> Result<Html<String>, StatusCode> {
+    let path = match uri.path().strip_prefix('/') {
+        Some(s) => s,
+        None => "",
+    };
+    let name = format!("pages/{}", path);
+
+    match config
+        .templates
+        .read()
+        .unwrap()
+        .render(name.as_str(), &path)
+    {
+        Ok(x) => Ok(Html(x)),
+        Err(e) => {
+            log::error!("{e}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// #[axum::debug_handler]
+// async fn page_handler(
+//     uri: Uri,
+//     State(config): State<SiteConfig>,
+// ) -> Result<Html<String>, (StatusCode, Html<String>)> {
+//     let page_path = match config.routes.get(uri.path()) {
+//         Some(s) => s,
+//         None => {
+//             let slash_path = uri.path().rfind('/');
+//             let path = match slash_path {
+//                 Some(idx) => &uri.path()[0..idx],
+//                 None => "",
+//             };
+//             match config.routes.get(path) {
+//                 Some(s) => s,
+//                 None => {
+//                     return Err((
+//                         StatusCode::NOT_FOUND,
+//                         Html("<h1>Not found</h1>".to_string()),
+//                     ));
+//                 }
+//             }
+//         }
+//     }
+//     .clone();
+//     log::info!("{:?}", page_path);
+//     let path = format!("{}/templates/{}", config.site_path, page_path.path);
+//     match fs::read_to_string(path.clone()) {
+//         Ok(s) => match page_path.template {
+//             None => Ok(Html(s)),
+//             Some(template_path) => {
+//                 let name = uri.path().split('/').rev().next().unwrap();
+//                 let slash_path = uri.path().rfind('/');
+//                 let path = match slash_path {
+//                     Some(idx) => &uri.path()[0..idx],
+//                     None => "",
+//                 };
+//                 match query_as!(
+//                 Post,
+//                 "SELECT id, name, content, date, tags, owner, status FROM posts WHERE name IS ?",
+//                 name
+//             )
+//                 .fetch_one(&config.db_pool.unwrap())
+//                 .await
+//                 {
+//                     Ok(post) => {
+//                         let mut tt: TinyTemplate<'_> = tinytemplate::TinyTemplate::new();
+//                         tt.set_default_formatter(&format_unescaped);
+//                         let full_path = format!("{}/{}", post.tags, post.name);
+//                         tt.add_template(full_path.as_str(), s.as_str()).unwrap();
+//                         match tt.render(full_path.as_str(), &post) {
+//                             Ok(html) => Ok(Html(html)),
+//                             Err(e) => {
+//                                 log::error!("{e}");
+//                                 Err((StatusCode::NOT_FOUND, Html("Not Found".to_string())))
+//                             }
+//                         }
+//                     }
+//                     Err(e) => {
+//                         log::warn!("{e}");
+//                         Err((StatusCode::NOT_FOUND, Html(e.to_string())))
+//                     }
+//                 }
+//             }
+//         },
+//         Err(e) => {
+//             log::error!("{}", e);
+//             log::error!("Path: {}", path);
+//             Err((StatusCode::NOT_FOUND, Html(e.to_string())))
+//         }
+//     }
+// }

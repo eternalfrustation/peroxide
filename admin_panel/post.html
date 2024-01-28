@@ -1,0 +1,26 @@
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@14.0.0/dist/markdown-it.min.js"></script>
+<section>
+  <h2>
+    Add a post
+  </h2>
+  <form action="/api/post" method="POST" hx-boost=true>
+    <label for="name">
+      <input name="name" id="name" placeholder="Title" required>
+    </label>
+    <label for="content">
+      <textarea placeholder="Content" id="content" name="content" required></textarea>
+      <label for="tags">
+        <input placeholder="Tags" id="tags" name="path"></input>
+      </label>
+    </label>
+    <label for="rendered_output"> Preview: </label>
+    <aside id="rendered_output" name="rendered_output">
+    </aside>
+    <button type="submit">Submit</button>
+    <button>Back</button>
+  </form>
+</section>
+
+<script>
+  document.getElementById("content").addEventListener("input", () => document.getElementById("rendered_output").innerHTML = window.markdownit().render(document.getElementById("content").value));
+</script>

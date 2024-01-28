@@ -2,17 +2,117 @@
 
 <head>
   <title>
-    Someting
+    Peroxide | Home
   </title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@next/css/pico.min.css">
+  <link rel="stylesheet" href="/static/index.css">
 </head>
 
 <body>
 
-  # Heading
+  <header class="container">
+    <nav>
+      <ul>
+        <li>
+          Hydroxide
+        </li>
+      </ul>
+      <ul>
+        <li> <a href="/blog">Blog</a> </li>
+        <li> <a href="/docs">Docs</a> </li>
+      </ul>
+    </nav>
+  </header>
+  <main class="container">
+    <section class="hero">
+      <center>
+        <h1>Another platform for hosting blogs.</h1>
+        <section>
+          <a href="#features"><button>Learn More</button></a>
+        </section>
+      </center>
+    </section>
+    <section>
+      <h1 id="features">
+        Features
+      </h1>
+      <hr>
+      <div class="grid">
+        <article>
+          <header>
+            Free
+          </header>
+          <main>
+            Unlike some other "Platforms", It is completely free
+          </main>
+        </article>
 
-  - Item One
-  - Item two
-
+        <article>
+          <header>
+            Open Source
+          </header>
+          <main>
+            Now, you can skip the diving into proprietary docs and dive into equally unmaintaned docs of open source
+            software.
+          </main>
+        </article>
+        <article>
+          <header>
+            Performant
+          </header>
+          <main>
+            Currently untested, but i can say with relative confidence that a 1 to 1 instance of peroxide will
+            outperform PHP based alternatives
+          </main>
+        </article>
+      </div>
+      <div class="grid">
+        <article>
+          <header>
+            Easy to use
+          </header>
+          <main>
+            Uses YAML and standard html for configuration, WYSIWYG tool planned.
+          </main>
+        </article>
+        <article>
+          <header>
+            Accidental Competitor to Neocities
+          </header>
+          <main>
+            As I am writing this, I have also realized that this might also end up competing/taking load off of
+            Neocities.
+          </main>
+        </article>
+      </div>
+    </section>
+    <section>
+      <hr>
+      <h3> Prerequisites </h3>
+      <hr>
+      First, you may need some things preinstalled<br>
+      <code>
+        cargo, git
+      </code>
+    </section>
+    <section>
+      <h3> Install </h3>
+      <hr>
+      <code>
+        $ git clone https://github.com/eternalfrustation/peroxide.git</br>
+        $ cd peroxide </br>
+        $ cargo install . </br>
+      </code>
+    </section>
+  </main>
+  <footer>
+    <div class="container">
+      <small>
+        Created by <a href="https://github.com/eternalfrustation">Sandeep Kumar</a> with Rust and PicoCSS
+      </small>
+    </div>
+  </footer>
 </body>
 
 </html>

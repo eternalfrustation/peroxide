@@ -1,0 +1,13 @@
+{{ for blog in blogs}}
+<tr>
+  <td> <img src={blog.img}> </td>
+  <td> {blog.title} </td>
+  <td> {blog.username} </td>
+  <td> {blog.post} </td>
+  <td> {blog.status} </td>
+  <td>
+    <button class="alt"> Edit </button>
+    <button class="alt"> Delete </button>
+  </td>
+</tr>
+{{ endfor }}

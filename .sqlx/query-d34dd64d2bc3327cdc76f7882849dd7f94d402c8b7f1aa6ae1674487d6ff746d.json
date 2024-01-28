@@ -32,6 +32,11 @@
         "name": "email",
         "ordinal": 5,
         "type_info": "Text"
+      },
+      {
+        "name": "rank",
+        "ordinal": 6,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -42,6 +47,7 @@
       false,
       false,
       true,
+      false,
       false,
       false
     ]

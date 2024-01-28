@@ -1,0 +1,47 @@
+<html>
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>
+    Home
+  </title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@next/css/pico.min.css" />
+</head>
+
+<body>
+  <main class="container">
+    <section>
+      <h2>
+        Admin Sign-In
+      </h2>
+      <form method=POST action="/api/sign_in" hx-boost="true">
+        <label for="email">
+          <input id="username" name="username" placeholder="Enter your Username" required>
+        </label>
+        <label for="pass">
+          <input id="pass" name="pass" placeholder="Enter your Password" required>
+        </label>
+        <a>Forgot Password?</a>
+        <button type="submit">Submit</button>
+        <button>Back</button>
+      </form>
+    </section>
+  </main>
+
+  <dialog id="error-dialog">
+    <article>
+      <header>
+        <span>Error</span>
+        <a href="#" aria-label="Close" rel="prev" onclick="closeError()"> </a>
+      </header>
+      <p id="error-message">
+        Unknown Error
+      </p>
+    </article>
+  </dialog>
+</body>
+<script src="/static/sign_in.js">
+</script>
+
+</html>

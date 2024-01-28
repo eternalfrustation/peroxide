@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, name, content, date, path, owner FROM posts WHERE path IS ? AND name IS ?",
+  "query": "SELECT id, name, content, date, tags, owner, status FROM posts WHERE id IS ?",
   "describe": {
     "columns": [
       {
@@ -24,20 +24,26 @@
         "type_info": "Int64"
       },
       {
-        "name": "path",
+        "name": "tags",
         "ordinal": 4,
-        "type_info": "Text"
+        "type_info": "Blob"
       },
       {
         "name": "owner",
         "ordinal": 5,
         "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 6,
+        "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -46,5 +52,5 @@
       false
     ]
   },
-  "hash": "7c76fea48b46749b62272ca416d095e9d522bbab41ac8987ed9772f5317b4293"
+  "hash": "63b02241239cfaa38cffb42c4bcb2c5c13be1d239134a649f53e92c328ba3969"
 }

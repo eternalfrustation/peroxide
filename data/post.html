@@ -1,0 +1,21 @@
+<tr id="blog-{id}" hx-get="/api/post?id={id|increment}" hx-trigger="revealed" hx-swap="afterend">
+  <td name="name">
+    { name }
+  </td>
+  <td name="owner">
+    { owner }
+  </td>
+  <td name="date">
+    { date }
+  </td>
+  <td name="status">
+    { status }
+  </td>
+  <td name="path">
+    { path }
+  </td>
+  <td name="buttons">
+    <button>Edit</button>
+    <button hx-delete="/api/post?id={id}" hx-target="#blog-{id}" hx-swap="delete">Delete</button>
+  </td>
+</tr>

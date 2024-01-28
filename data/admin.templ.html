@@ -1,0 +1,19 @@
+<html>
+
+<head>
+  <title>
+    Dashboard
+  </title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@next/css/pico.min.css" />
+</head>
+
+<body>
+  <header>
+    <nav class="container" hx-trigger="load" hx-get="/admin/partial/navbar">
+    </nav>
+  </header>
+  <main class="container" hx-trigger="load" hx-get="/admin/partial/{path}">
+  </main>
+
+</body>
