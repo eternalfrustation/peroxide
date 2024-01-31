@@ -11,6 +11,7 @@ axum = {version = "0.7.3", features = ["macros"] }
 axum-extra = { version = "0.9.1", features = ["cookie", "cookie-private"] }
 base64 = "0.21.5"
 chrono = "0.4.31"
+clap = { version = "4.4.18", features = ["derive"] }
 comrak = { version = "0.20.0", features = ["emojis"] }
 femme = "2.2.1"
 jsonwebtoken = "9.2.0"

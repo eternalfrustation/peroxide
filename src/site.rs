@@ -101,7 +101,8 @@ pub async fn init_site(path: String) {
             name TEXT NOT NULL,
             content TEXT NOT NULL,
             date INTEGER NOT NULL DEFAULT (unixepoch(CURRENT_TIMESTAMP)),
-            path TEXT NOT NULL,
+            tags BLOB NOT NULL DEFAULT X'',
+            status TEXT NOT NULL DEFAULT 'Draft',
             owner TEXT NOT NULL,
             FOREIGN KEY(owner) REFERENCES users(username)
         ) STRICT"
@@ -355,76 +356,3 @@ pub async fn handle_page(
         }
     }
 }
-
-// #[axum::debug_handler]
-// async fn page_handler(
-//     uri: Uri,
-//     State(config): State<SiteConfig>,
-// ) -> Result<Html<String>, (StatusCode, Html<String>)> {
-//     let page_path = match config.routes.get(uri.path()) {
-//         Some(s) => s,
-//         None => {
-//             let slash_path = uri.path().rfind('/');
-//             let path = match slash_path {
-//                 Some(idx) => &uri.path()[0..idx],
-//                 None => "",
-//             };
-//             match config.routes.get(path) {
-//                 Some(s) => s,
-//                 None => {
-//                     return Err((
-//                         StatusCode::NOT_FOUND,
-//                         Html("<h1>Not found</h1>".to_string()),
-//                     ));
-//                 }
-//             }
-//         }
-//     }
-//     .clone();
-//     log::info!("{:?}", page_path);
-//     let path = format!("{}/templates/{}", config.site_path, page_path.path);
-//     match fs::read_to_string(path.clone()) {
-//         Ok(s) => match page_path.template {
-//             None => Ok(Html(s)),
-//             Some(template_path) => {
-//                 let name = uri.path().split('/').rev().next().unwrap();
-//                 let slash_path = uri.path().rfind('/');
-//                 let path = match slash_path {
-//                     Some(idx) => &uri.path()[0..idx],
-//                     None => "",
-//                 };
-//                 match query_as!(
-//                 Post,
-//                 "SELECT id, name, content, date, tags, owner, status FROM posts WHERE name IS ?",
-//                 name
-//             )
-//                 .fetch_one(&config.db_pool.unwrap())
-//                 .await
-//                 {
-//                     Ok(post) => {
-//                         let mut tt: TinyTemplate<'_> = tinytemplate::TinyTemplate::new();
-//                         tt.set_default_formatter(&format_unescaped);
-//                         let full_path = format!("{}/{}", post.tags, post.name);
-//                         tt.add_template(full_path.as_str(), s.as_str()).unwrap();
-//                         match tt.render(full_path.as_str(), &post) {
-//                             Ok(html) => Ok(Html(html)),
-//                             Err(e) => {
-//                                 log::error!("{e}");
-//                                 Err((StatusCode::NOT_FOUND, Html("Not Found".to_string())))
-//                             }
-//                         }
-//                     }
-//                     Err(e) => {
-//                         log::warn!("{e}");
-//                         Err((StatusCode::NOT_FOUND, Html(e.to_string())))
-//                     }
-//                 }
-//             }
-//         },
-//         Err(e) => {
-//             log::error!("{}", e);
-//             log::error!("Path: {}", path);
-//             Err((StatusCode::NOT_FOUND, Html(e.to_string())))
-//         }
-//     }
-// }
