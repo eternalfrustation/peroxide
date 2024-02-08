@@ -6,23 +6,13 @@
   </title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@next/css/pico.min.css">
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <link rel="stylesheet" href="/static/index.css">
 </head>
 
 <body>
 
-  <header class="container">
-    <nav>
-      <ul>
-        <li>
-          Hydroxide
-        </li>
-      </ul>
-      <ul>
-        <li> <a href="/blog">Blog</a> </li>
-        <li> <a href="/docs">Docs</a> </li>
-      </ul>
-    </nav>
+  <header class="container" hx-get="/navbar" hx-trigger="load">
   </header>
   <main class="container">
     <section class="hero">

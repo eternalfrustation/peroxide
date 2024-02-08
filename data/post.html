@@ -11,10 +11,12 @@
   <td name="status">
     { status }
   </td>
-  <td name="path">
-    { path }
+  <td name="tags">
+    {{ for tag in tags.data}}
+    { tag },
+    {{ endfor }}
   </td>
-  <td name="buttons">
+  <td name="actions">
     <button>Edit</button>
     <button hx-delete="/api/post?id={id}" hx-target="#blog-{id}" hx-swap="delete">Delete</button>
   </td>

@@ -9,8 +9,29 @@
 </head>
 
 <body>
-  <h1>
-  </h1>
+  <header class="container" hx-get="/navbar" hx-trigger="load">
+  </header>
+  <main class="container">
+    <h1> Blogs </h1>
+    <table>
+      <thead>
+        <tr>
+          <th> Title </th>
+          <th> Author </th>
+          <th> Publication Date </th>
+          <th> Status </th>
+          <th> Tags </th>
+          <th> Actions </th>
+        </tr>
+      </thead>
+      <tbody hx-get="/api/post" hx-trigger="load">
+      </tbody>
+    </table>
+  </main>
 </body>
+<style>
+  button[name="actions"] \{ display: none;
+  }
+</style>
 
 </html>

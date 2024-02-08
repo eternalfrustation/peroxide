@@ -2,6 +2,7 @@ use serde::*;
 use std::{
     collections::HashMap,
     fs,
+    io::Write,
     os::unix::fs::DirEntryExt,
     sync::{Arc, RwLock},
 };
@@ -182,9 +183,14 @@ fn setup_templates(routes: &HashMap<String, PagePath>, site_path: String) -> Tin
         log::info!("Found template file {name}");
         let content =
             fs::read_to_string(format!("{site_path}/templates/{}", path.path.clone())).unwrap();
-        templates
-            .add_template(format!("pages{name}"), content)
-            .unwrap();
+        std::io::stdout().flush().unwrap();
+        match templates.add_template(format!("pages{name}"), content) {
+            Ok(t) => t,
+            Err(e) => log::error!(
+                "Error while compiling template: pages{name} with error: {}",
+                e,
+            ),
+        };
         match path.template.clone() {
             Some(template_path) => {
                 let content =

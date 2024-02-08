@@ -5,3 +5,4 @@ domain = "0.0.0.0:3000"
 "/blog" = {path = "blog.html"}
 "/sign_in" = {path = "sign_in.html"}
 "/sign_up" = {path = "sign_up.html"}
+"/navbar" = {path = "navbar.html"}

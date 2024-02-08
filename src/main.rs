@@ -19,7 +19,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-    femme::start();
+    pretty_env_logger::init();
     let args = Args::parse();
     let config: PeroxideConfig =
         toml::from_str(fs::read_to_string(args.config).unwrap().as_str()).unwrap();
