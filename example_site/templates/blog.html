@@ -6,6 +6,12 @@
   </title>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@next/css/pico.min.css" />
+  <style>
+    td[name="actions"],
+    tr[name="actions"] {
+      display: none;
+    }
+  </style>
 </head>
 
 <body>
@@ -21,7 +27,6 @@
           <th> Publication Date </th>
           <th> Status </th>
           <th> Tags </th>
-          <th> Actions </th>
         </tr>
       </thead>
       <tbody hx-get="/api/post" hx-trigger="load">
@@ -29,9 +34,5 @@
     </table>
   </main>
 </body>
-<style>
-  button[name="actions"] \{ display: none;
-  }
-</style>
 
 </html>

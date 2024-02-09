@@ -213,13 +213,14 @@ pub async fn get_post<'a>(
     .await
     {
         Ok(post) => {
-            let mut tt: TinyTemplate = TinyTemplate::new();
-            tt.set_default_formatter(&format_unescaped);
-            tt.add_formatter("increment".to_string(), increment);
-            let post_template = &fs::read_to_string("data/post.html").unwrap();
-            tt.add_template("default".to_string(), post_template.clone())
-                .unwrap();
-            match tt.render("default", &post) {
+            let template = &match config.templates.read() {
+                Ok(t) => t,
+                Err(e) => {
+                    log::error!("Templates Lock poisoned: {e}");
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
+            };
+            match template.render("data/post", &post) {
                 Ok(html) => Ok(Html(html)),
                 Err(e) => {
                     log::error!("{e}");
@@ -259,22 +260,4 @@ pub struct Post {
     pub tags: VecStr,
     pub owner: String,
     pub status: PostStatus,
-}
-
-fn increment(
-    value: &serde_json::Value,
-    string: &mut String,
-) -> tinytemplate_async::error::Result<()> {
-    let num = match value {
-        serde_json::Value::Number(num) => num,
-        a => {
-            return Err(tinytemplate_async::error::Error::ParseError {
-                msg: format!("Could not increment the non number input: {}", a).to_string(),
-                line: 0,
-                column: 0,
-            })
-        }
-    };
-    string.push_str((num.as_f64().unwrap() + 1.0).to_string().as_str());
-    Ok(())
 }

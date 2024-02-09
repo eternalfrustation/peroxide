@@ -1,8 +1,11 @@
+use chrono::{SubsecRound, Timelike};
 use serde::*;
 use std::{
+    any::Any,
     collections::HashMap,
+    fmt::Write,
     fs,
-    io::Write,
+    hash::Hash,
     os::unix::fs::DirEntryExt,
     sync::{Arc, RwLock},
 };
@@ -146,44 +149,86 @@ pub async fn init_site(path: String) {
     };
 }
 
+fn increment(
+    value: &serde_json::Value,
+    string: &mut String,
+) -> tinytemplate_async::error::Result<()> {
+    let num = match value {
+        serde_json::Value::Number(num) => num,
+        a => {
+            return Err(tinytemplate_async::error::Error::ParseError {
+                msg: format!("Could not increment the non number input: {}", a).to_string(),
+                line: 0,
+                column: 0,
+            })
+        }
+    };
+    string.push_str((num.as_f64().unwrap() + 1.0).to_string().as_str());
+    Ok(())
+}
+
+fn human_date(
+    value: &serde_json::Value,
+    string: &mut String,
+) -> tinytemplate_async::error::Result<()> {
+    let num = match value {
+        serde_json::Value::Number(num) => num,
+        a => {
+            return Err(tinytemplate_async::error::Error::ParseError {
+                msg: format!("Could not increment the non number input: {}", a).to_string(),
+                line: 0,
+                column: 0,
+            })
+        }
+    };
+    let post_time = chrono::DateTime::from_timestamp(num.as_i64().unwrap(), 0).unwrap();
+    string
+        .write_str(post_time.format("%H:%M:%S %d %b %Y").to_string().as_str())
+        .unwrap();
+    Ok(())
+}
 fn setup_templates(routes: &HashMap<String, PagePath>, site_path: String) -> TinyTemplate {
     let mut templates = TinyTemplate::new();
+    templates.add_formatter("increment".to_string(), increment);
+    templates.add_formatter("human_date".to_string(), human_date);
     let admin_template = fs::read_to_string("data/admin.templ.html").unwrap();
     templates
         .add_template("admin".to_string(), admin_template)
         .unwrap();
-    for ele in fs::read_dir("admin_panel/").unwrap() {
-        match ele {
-            Ok(entry) => {
-                if !entry.path().is_file() {
+    for p in ["admin_panel/", "data/"].into_iter() {
+        for ele in fs::read_dir(p).unwrap() {
+            match ele {
+                Ok(entry) => {
+                    if !entry.path().is_file() {
+                        continue;
+                    }
+                    let path = entry.path();
+                    let content = fs::read_to_string(entry.path()).unwrap();
+                    let path = match path.extension() {
+                        Some(ext) => path
+                            .to_str()
+                            .unwrap()
+                            .to_string()
+                            .strip_suffix((String::from(".") + ext.to_str().unwrap()).as_str())
+                            .unwrap()
+                            .to_string(),
+                        None => path.to_str().unwrap().to_string(),
+                    };
+                    println!("{:?}", path);
+                    templates.add_template(path, content).unwrap();
+                }
+                Err(e) => {
+                    log::error!("{}", e);
                     continue;
                 }
-                let path = entry.path();
-                let path = path.strip_prefix("admin_panel/").unwrap();
-                let content = fs::read_to_string(entry.path()).unwrap();
-                let path = match path.extension() {
-                    Some(ext) => path
-                        .to_str()
-                        .unwrap()
-                        .to_string()
-                        .strip_suffix(ext.to_str().unwrap())
-                        .unwrap()
-                        .to_string(),
-                    None => path.to_str().unwrap().to_string(),
-                };
-                templates.add_template(path, content).unwrap();
-            }
-            Err(e) => {
-                log::error!("{}", e);
-                continue;
             }
         }
     }
+
     for (name, path) in routes {
         log::info!("Found template file {name}");
         let content =
             fs::read_to_string(format!("{site_path}/templates/{}", path.path.clone())).unwrap();
-        std::io::stdout().flush().unwrap();
         match templates.add_template(format!("pages{name}"), content) {
             Ok(t) => t,
             Err(e) => log::error!(
@@ -251,7 +296,7 @@ async fn handle_admin_panel_partial(
     State(config): State<SiteConfig>,
 ) -> Result<Html<String>, StatusCode> {
     match config.templates.read().unwrap().render(
-        page.clone().as_str(),
+        format!("admin_panel/{}", page.clone().as_str()).as_str(),
         &(AdminPageTempl {
             path: page,
             content: None,
