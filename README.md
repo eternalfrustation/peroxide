@@ -10,15 +10,20 @@ Yes, I know using hugo would have been way easier, because most of the framework
 [x] Basic config for routing.
 [x] Basic framework for routing.
 [ ] Importing wordpress websites.
-    [ ] Parsing the wp-json api
+    [x] Parsing the wp-json api
         [x] Parsing the Pages endpoint.
         [x] Parsing the Posts endpoint.
         [x] Parsing the Tags Endpoint
         [x] Parsing the Media Endpoint
-        [ ] Parsing the Users Endpoint
-    [ ] Importing the pages from the api
-    [ ] Importing the posts from the api
-    [ ] Importing the themes from the api
+        [x] Parsing the Users Endpoint
+        [x] Parsing the Comments Endpoint
+    [ ] Saving the website from the parsed site.
+        [ ] Saving the Pages endpoint.
+        [ ] Saving the Posts endpoint.
+        [ ] Saving the Tags Endpoint
+        [ ] Saving the Media Endpoint
+        [ ] Saving the Users Endpoint
+        [ ] Saving the Comments Endpoint
 [ ] Compatibility with the shit that is outputted by the transpiling steps of node.
 
 ## Credits 
