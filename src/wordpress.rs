@@ -1,11 +1,17 @@
-use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::RwLock;
+use std::{collections::HashMap, sync::Arc};
 
+use axum::http::Uri;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tinytemplate_async::TinyTemplate;
+
+use crate::config::SiteConfig;
 
 #[derive(Debug)]
 pub struct WordpressSite {
+    url: String,
     post: Vec<WordpressData>,
     page: Vec<WordpressData>,
     tags: Vec<WordpressTags>,
@@ -176,13 +182,42 @@ struct TagLinks {
     inner: Vec<LinkHref>,
 }
 
+pub enum SiteSaveError {
+    DirectoryCreateError,
+    DirectoryReadError,
+    InvalidUrl,
+}
+
 impl WordpressSite {
-    pub fn save(&self, path: String) {
-        println!("{:#?}", self);
+    pub fn save(&self, path: String) -> Result<SiteConfig, SiteSaveError> {
+        println!("{path}");
+        let url: &str = self.url.as_str();
+        std::fs::create_dir_all(path.clone()).map_err(|_| SiteSaveError::DirectoryCreateError)?;
+        let domain = Uri::from_str(url)
+            .map_err(|_| SiteSaveError::InvalidUrl)?
+            .host()
+            .unwrap()
+            .to_string();
+        let routes = HashMap::new();
+        let templates = TinyTemplate::new();
+        for page in self.page.iter() {}
+        let templates = Arc::from(RwLock::from(templates));
+        Ok(SiteConfig {
+            db_filename: "db.sqlite3".into(),
+            db_pool: None,
+            site_path: domain.clone(),
+            domain,
+            routes,
+            templates,
+        })
     }
+}
+
+impl WordpressSite {
     pub async fn from_site_url(url: String) -> WordpressSite {
         let client = Client::new();
         WordpressSite {
+            url: url.clone(),
             post: serde_json::from_str(
                 client
                     .get(

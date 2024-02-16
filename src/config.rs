@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tinytemplate_async::TinyTemplate;
 
+use crate::wordpress::WordpressSite;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PeroxideConfig {
     pub directories: Vec<String>,
@@ -15,8 +17,6 @@ pub struct PeroxideConfig {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SiteConfig {
-    #[serde(default = "content_default")]
-    pub content: String,
     #[serde(default = "db_default")]
     pub db_filename: String,
     #[serde(skip)]
@@ -38,10 +38,6 @@ pub struct PagePath {
 
 fn default_template() -> Option<String> {
     None
-}
-
-fn content_default() -> String {
-    "content".to_string()
 }
 
 fn db_default() -> String {
