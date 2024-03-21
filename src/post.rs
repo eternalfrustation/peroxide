@@ -4,7 +4,7 @@ use axum::{
     extract::{FromRef, Query, State},
     http::StatusCode,
     response::{Html, Redirect},
-    Form,
+    Form, Json,
 };
 use axum_extra::handler::HandlerCallWithExtractors;
 use comrak::Options;
@@ -203,7 +203,7 @@ fn one() -> i64 {
 pub async fn get_post<'a>(
     query: Query<PostGetRequest>,
     State(config): State<SiteConfig>,
-) -> Result<Html<String>, StatusCode> {
+) -> Result<Json<String>, StatusCode> {
     match query_as!(
         Post,
         "SELECT id, name, content, date, tags, owner, status FROM posts WHERE id IS ?",

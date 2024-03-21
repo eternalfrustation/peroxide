@@ -269,46 +269,7 @@ async fn handle_admin_panel(
     user: User,
     State(config): State<SiteConfig>,
 ) -> Result<Html<String>, StatusCode> {
-    match fs::read_to_string(format!("admin_panel/{}.html", page.path)) {
-        Ok(s) => {
-            let mut admin_page_content = page.0.clone();
-            admin_page_content.content = Some(s);
-            admin_page_content.user = user;
-            Ok(Html(
-                config
-                    .templates
-                    .read()
-                    .unwrap()
-                    .render("admin", &admin_page_content)
-                    .unwrap(),
-            ))
-        }
-        Err(e) => {
-            error!("{:?}", e);
-            Err(StatusCode::NOT_FOUND)
-        }
-    }
-}
-
-async fn handle_admin_panel_partial(
-    Path(page): Path<String>,
-    user: User,
-    State(config): State<SiteConfig>,
-) -> Result<Html<String>, StatusCode> {
-    match config.templates.read().unwrap().render(
-        format!("admin_panel/{}", page.clone().as_str()).as_str(),
-        &(AdminPageTempl {
-            path: page,
-            content: None,
-            user,
-        }),
-    ) {
-        Ok(rendered) => Ok(Html(rendered)),
-        Err(e) => {
-            log::error!("{e}");
-            Err(StatusCode::NOT_FOUND)
-        }
-    }
+    fs::read_to_string("admin_panel/index.html").map(|content| Html(content)).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 fn setup_routes(config: &SiteConfig) -> Router {
@@ -316,16 +277,14 @@ fn setup_routes(config: &SiteConfig) -> Router {
         .nest(
             "/admin",
             Router::new()
-                .nest_service("/static", ServeDir::new("admin_panel/static"))
-                .route("/partial/:page", get(handle_admin_panel_partial))
+                .nest_service("/assets", ServeDir::new("admin/assets"))
                 .route("/", get(handle_admin_panel)),
         )
         .nest(
             "/api",
             Router::new()
                 .route("/post", get(get_post).post(create_post).delete(delete_post))
-                .route("/sign_in", post(sign_in))
-                .route("/sign_up", post(sign_up)),
+                .route("/sign_in", post(sign_in)),
         )
         .nest_service(
             "/static",
