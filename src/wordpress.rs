@@ -142,7 +142,7 @@ impl From<String> for WordpressStatus {
 
 mod wordpress_date_format {
     use chrono::{DateTime, NaiveDateTime, Utc};
-    use serde::{self, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer};
     const FORMAT: &'static str = "%Y-%M-%DT%H:%M:%S";
     pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -200,7 +200,7 @@ impl WordpressSite {
             .to_string();
         let routes = HashMap::new();
         let templates = TinyTemplate::new();
-        for page in self.page.iter() {}
+        for _page in self.page.iter() {}
         let templates = Arc::from(RwLock::from(templates));
         Ok(SiteConfig {
             db_filename: "db.sqlite3".into(),

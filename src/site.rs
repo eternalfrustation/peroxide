@@ -1,17 +1,13 @@
-use chrono::{SubsecRound, Timelike};
 use serde::*;
 use std::{
-    any::Any,
     collections::HashMap,
     fmt::Write,
     fs,
-    hash::Hash,
-    os::unix::fs::DirEntryExt,
     sync::{Arc, RwLock},
 };
 
 use axum::{
-    extract::{path, Path, Query, State},
+    extract::{Path, State},
     http::{StatusCode, Uri},
     response::Html,
     routing::{get, post},
@@ -19,11 +15,11 @@ use axum::{
 };
 use log::error;
 use sqlx::{query, query_as, sqlite::SqlitePoolOptions, SqlitePool};
-use tinytemplate_async::{format_unescaped, TinyTemplate};
+use tinytemplate_async::TinyTemplate;
 use tower_http::services::ServeDir;
 
 use crate::{
-    auth::{sign_in, sign_up, User},
+    auth::{create_user, get_user, sign_in, User},
     config::{PagePath, SiteConfig},
     post::{create_post, delete_post, get_post, Post},
 };
@@ -264,12 +260,10 @@ fn default_admin_page() -> String {
     "blogs".to_string()
 }
 
-async fn handle_admin_panel(
-    page: Query<AdminPageTempl>,
-    user: User,
-    State(config): State<SiteConfig>,
-) -> Result<Html<String>, StatusCode> {
-    fs::read_to_string("admin_panel/index.html").map(|content| Html(content)).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+async fn serve_react(_user: User) -> Result<Html<String>, StatusCode> {
+    fs::read_to_string("admin_panel/index.html")
+        .map(|content| Html(content))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 fn setup_routes(config: &SiteConfig) -> Router {
@@ -278,13 +272,13 @@ fn setup_routes(config: &SiteConfig) -> Router {
             "/admin",
             Router::new()
                 .nest_service("/assets", ServeDir::new("admin/assets"))
-                .route("/", get(handle_admin_panel)),
+                .route("/", get(serve_react)),
         )
         .nest(
             "/api",
             Router::new()
                 .route("/post", get(get_post).post(create_post).delete(delete_post))
-                .route("/sign_in", post(sign_in)),
+                .route("/user", get(get_user).post(create_user).put(sign_in))
         )
         .nest_service(
             "/static",
@@ -343,6 +337,7 @@ pub async fn handle_page_templated(
         }
     }
 }
+
 pub async fn handle_page(
     uri: Uri,
     State(config): State<SiteConfig>,

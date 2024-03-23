@@ -1,24 +1,19 @@
-use std::{borrow::Cow, error::Error, fs, hash::Hash, io::Write};
+use std::{error::Error, io::Write};
 
 use axum::{
-    extract::{FromRef, Query, State},
+    extract::{Query, State},
     http::StatusCode,
-    response::{Html, Redirect},
     Form, Json,
 };
-use axum_extra::handler::HandlerCallWithExtractors;
-use comrak::Options;
 use log::error;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sqlx::{
     database::HasValueRef,
     prelude::{FromRow, Type},
     query, query_as,
     sqlite::SqliteTypeInfo,
-    Database, Decode, Encode, Sqlite, Value, ValueRef,
+    Database, Decode, Encode, Sqlite,
 };
-use tinytemplate_async::{format_unescaped, TinyTemplate};
 
 use crate::{auth::User, config::SiteConfig};
 
@@ -141,15 +136,11 @@ pub async fn create_post<'a>(
     State(config): State<SiteConfig>,
     user: User,
     form: Form<PostCreateRequest>,
-) -> Result<Redirect, StatusCode> {
-    let content = comrak::markdown_to_html(
-        ammonia::clean(form.content.as_str()).as_str(),
-        &Options::default(),
-    );
+) -> StatusCode {
     match query!(
         "INSERT INTO posts(name, content, tags, owner) VALUES(?1, ?2, ?3, ?4)",
         form.name,
-        content,
+        form.content,
         form.tags,
         user.username
     )
@@ -158,9 +149,9 @@ pub async fn create_post<'a>(
     {
         Err(e) => {
             error!("Error while inserting a post: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
-        Ok(_) => Ok(Redirect::to("/admin?path=blogs")),
+        Ok(_) => StatusCode::OK,
     }
 }
 
@@ -173,7 +164,7 @@ pub async fn delete_post<'a>(
     State(config): State<SiteConfig>,
     user: User,
     form: Query<PostDeleteRequest>,
-) -> Result<String, StatusCode> {
+) -> StatusCode {
     match query!(
         "DELETE FROM posts WHERE id = ? AND owner = ?",
         form.id,
@@ -182,10 +173,10 @@ pub async fn delete_post<'a>(
     .execute(&config.db_pool.clone().unwrap())
     .await
     {
-        Ok(_) => Ok("Deleted".to_string()),
+        Ok(_) => StatusCode::OK,
         Err(e) => {
             error!("Error while deleting a post: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
@@ -203,31 +194,17 @@ fn one() -> i64 {
 pub async fn get_post<'a>(
     query: Query<PostGetRequest>,
     State(config): State<SiteConfig>,
-) -> Result<Json<String>, StatusCode> {
-    match query_as!(
-        Post,
-        "SELECT id, name, content, date, tags, owner, status FROM posts WHERE id IS ?",
-        query.id
-    )
-    .fetch_one(&config.db_pool.unwrap())
-    .await
+) -> Result<Json<Post>, StatusCode> {
+    match query_as!(Post, "SELECT * FROM posts WHERE id IS ?", query.id)
+        .fetch_one(&config.db_pool.unwrap())
+        .await
     {
         Ok(post) => {
-            let template = &match config.templates.read() {
-                Ok(t) => t,
-                Err(e) => {
-                    log::error!("Templates Lock poisoned: {e}");
-                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
-                }
-            };
-            match template.render("data/post", &post) {
-                Ok(html) => Ok(Html(html)),
-                Err(e) => {
-                    log::error!("{e}");
-                    Err(StatusCode::NOT_FOUND)
-                }
-            }
+            let content = ammonia::clean(post.content.as_str());
+            let post = Post { content, ..post };
+            Ok(Json(post))
         }
+
         Err(e) => {
             log::warn!("{e}");
             Err(StatusCode::NOT_FOUND)

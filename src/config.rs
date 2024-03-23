@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tinytemplate_async::TinyTemplate;
 
-use crate::wordpress::WordpressSite;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PeroxideConfig {
