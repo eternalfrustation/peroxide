@@ -1,6 +1,4 @@
-use inquire::{
-    Password, Select, Text
-};
+use inquire::{Password, Select, Text};
 use serde::*;
 use std::{
     collections::HashMap,
@@ -13,7 +11,7 @@ use axum::{
     extract::{Path, State},
     http::{StatusCode, Uri},
     response::Html,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use log::error;
@@ -23,7 +21,7 @@ use tower_http::services::ServeDir;
 
 use crate::{
     auth::{
-        admin::create_privileged,
+        admin::{admin_middleware, create_privileged},
         sign_in::sign_in,
         sign_up::{create_user, UserSignUp},
         user::{get_user, Rank, User},
@@ -142,7 +140,9 @@ pub async fn init_site(path: String) {
             .unwrap();
         let pass = Password::new("Enter the password: ").prompt().unwrap();
         let email = Text::new("Enter the mail: ").prompt().unwrap();
-        let rank = Select::new("Select the rank: ", vec![Rank::Admin, Rank::User]).prompt().unwrap();
+        let rank = Select::new("Select the rank: ", vec![Rank::Admin, Rank::User])
+            .prompt()
+            .unwrap();
 
         create_privileged(
             UserSignUp {
@@ -153,7 +153,9 @@ pub async fn init_site(path: String) {
             },
             rank,
             &site_config,
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
         log::info!("Added user successfully");
         let new_config = toml::to_string(&site_config).unwrap();
         fs::write(format!("{}/PeroxideSite.toml", path), new_config).unwrap();
@@ -315,7 +317,8 @@ fn setup_routes(config: &SiteConfig) -> Router {
             "/api",
             Router::new()
                 .route("/post", get(get_post).post(create_post).delete(delete_post))
-                .route("/user", get(get_user).post(create_user).put(sign_in)),
+                .route("/user", get(get_user).put(sign_in))
+                .nest("/admin", Router::new().route("/user", post(create_user)).layer(admin_middleware)),
         )
         .nest_service(
             "/static",

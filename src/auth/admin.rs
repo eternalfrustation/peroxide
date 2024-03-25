@@ -1,3 +1,5 @@
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
+
 use crate::config::SiteConfig;
 
 use super::{sign_up::UserSignUp, user::{Rank, User}};
@@ -23,4 +25,17 @@ pub async fn create_privileged(user: UserSignUp, rank: Rank, state: &SiteConfig)
             Err("DB not connected".to_string())
         }
     }
+}
+
+pub async fn admin_middleware(
+    user: User,
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if user.rank == Rank::Admin {
+        Ok(next.run(request).await)
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+
 }

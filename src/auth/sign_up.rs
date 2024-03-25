@@ -54,9 +54,6 @@ pub async fn create_user(
     State(state): State<SiteConfig>,
     TypedMultipart(user_resp): TypedMultipart<UserSignUp>,
 ) -> Result<Json<UserInfo>, StatusCode> {
-    if admin.rank != Rank::Admin {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
     let new_user: User = user_resp.try_into().unwrap();
     match sqlx::query!("insert into users (name, username, profile_pic, salt, sh_pass, email) values($1, $2, $3, $4, $5, $6)", new_user.name, new_user.username, new_user.profile_pic, new_user.salt, new_user.sh_pass, new_user.email).execute(&state.db_pool.unwrap()).await {
         Err(e) => {
