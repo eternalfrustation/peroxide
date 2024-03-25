@@ -6,6 +6,7 @@ use std::{
     fs,
     sync::{Arc, RwLock},
 };
+use tower::ServiceBuilder;
 
 use axum::{
     extract::{Path, State},
@@ -21,12 +22,12 @@ use tower_http::services::ServeDir;
 
 use crate::{
     auth::{
-        admin::{admin_middleware, create_privileged},
+        admin::{create_privileged, Admin},
         sign_in::sign_in,
         sign_up::{create_user, UserSignUp},
         user::{get_user, Rank, User},
     },
-    config::{PagePath, SiteConfig},
+    config::{change_domain, PagePath, SiteConfig},
     post::{create_post, delete_post, get_post, Post},
 };
 
@@ -157,8 +158,7 @@ pub async fn init_site(path: String) {
         .await
         .unwrap();
         log::info!("Added user successfully");
-        let new_config = toml::to_string(&site_config).unwrap();
-        fs::write(format!("{}/PeroxideSite.toml", path), new_config).unwrap();
+        site_config.save().expect("Saving the new config");
     }
     let listener = match tokio::net::TcpListener::bind(site_config.domain.clone()).await {
         Ok(t) => t,
@@ -318,7 +318,16 @@ fn setup_routes(config: &SiteConfig) -> Router {
             Router::new()
                 .route("/post", get(get_post).post(create_post).delete(delete_post))
                 .route("/user", get(get_user).put(sign_in))
-                .nest("/admin", Router::new().route("/user", post(create_user)).layer(admin_middleware)),
+                .nest(
+                    "/admin",
+                    Router::new()
+                        .route("/user", post(create_user))
+                        .route("/settings/domain", post(change_domain))
+                        .layer(
+                            ServiceBuilder::new()
+                                .layer(axum::middleware::from_extractor::<Admin>()),
+                        ),
+                ),
         )
         .nest_service(
             "/static",

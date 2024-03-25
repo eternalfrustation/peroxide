@@ -1,4 +1,4 @@
-use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
+use axum::{async_trait, extract::{FromRequestParts, Request}, http::{request::Parts, StatusCode}, middleware::Next, response::{IntoResponse, Response}, Extension};
 
 use crate::config::SiteConfig;
 
@@ -27,15 +27,25 @@ pub async fn create_privileged(user: UserSignUp, rank: Rank, state: &SiteConfig)
     }
 }
 
-pub async fn admin_middleware(
-    user: User,
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
-    if user.rank == Rank::Admin {
-        Ok(next.run(request).await)
-    } else {
-        Err(StatusCode::UNAUTHORIZED)
-    }
+pub struct Admin(User);
 
+#[async_trait]
+impl<S> FromRequestParts<S> for Admin
+where
+    S: Send + Sync,
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        use axum::RequestPartsExt;
+        let Extension(user) = parts.extract::<Extension<User>>()
+            .await
+            .map_err(|err| err.into_response())?;
+
+        if user.rank == Rank::Admin {
+            Err(StatusCode::UNAUTHORIZED.into_response())
+        } else {
+            Ok(Self(user))
+        }
+    }
 }

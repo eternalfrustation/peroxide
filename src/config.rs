@@ -1,8 +1,11 @@
 use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
+    collections::HashMap, fs, io, sync::{Arc, RwLock}
 };
 
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tinytemplate_async::TinyTemplate;
@@ -29,6 +32,13 @@ pub struct SiteConfig {
     pub create_user: bool,
 }
 
+impl SiteConfig {
+    pub fn save(&self) -> io::Result<()> {
+        let new_config = toml::to_string(&self).expect("Decoding the SiteConfig struct");
+        fs::write(format!("{}/PeroxideSite.toml", self.site_path), new_config)
+    }
+}
+
 fn create_user_default() -> bool {
     false
 }
@@ -45,6 +55,25 @@ fn default_template() -> Option<String> {
 }
 
 fn db_default() -> String {
-
     "db.sqlite3".to_string()
+}
+
+#[derive(Serialize, Deserialize)]
+struct ChangeDomainReq {
+    domain: String,
+}
+
+#[axum::debug_handler]
+pub async fn change_domain(
+    State(mut state): State<SiteConfig>,
+    Query(req): Query<ChangeDomainReq>,
+) -> StatusCode {
+    state.domain = req.domain;
+    match state.save() {
+        Ok(_) => StatusCode::OK,
+        Err(e) => {
+            log::error!("{e}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
 }
