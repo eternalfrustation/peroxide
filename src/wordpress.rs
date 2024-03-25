@@ -209,6 +209,7 @@ impl WordpressSite {
             domain,
             routes,
             templates,
+            create_user: false,
         })
     }
 }

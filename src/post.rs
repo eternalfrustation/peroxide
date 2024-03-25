@@ -1,9 +1,15 @@
+use axum::async_trait;
+use futures::{stream::Stream, StreamExt};
 use std::{error::Error, io::Write};
 
 use axum::{
+    body::Bytes,
     extract::{Query, State},
     http::StatusCode,
-    Form, Json,
+    Json,
+};
+use axum_typed_multipart::{
+    FieldMetadata, TryFromChunks, TryFromMultipart, TypedMultipart, TypedMultipartError,
 };
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -15,9 +21,9 @@ use sqlx::{
     Database, Decode, Encode, Sqlite,
 };
 
-use crate::{auth::User, config::SiteConfig};
+use crate::{auth::user::User, config::SiteConfig};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TryFromMultipart)]
 pub struct PostCreateRequest {
     name: String,
     content: String,
@@ -28,6 +34,76 @@ pub struct PostCreateRequest {
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct VecStr {
     pub data: Vec<String>,
+}
+
+#[async_trait]
+impl TryFromChunks for VecStr {
+    #[doc = r" This expects the vector to be in the format"]
+    #[doc = r" [ vector length ][ 1st strings length ][ string data ][ 2nd strings length ][ string data ]...[ last strings length ][ string data ]"]
+    async fn try_from_chunks(
+        mut chunks: impl 'async_trait
+            + Stream<Item = Result<Bytes, TypedMultipartError>>
+            + Send
+            + Sync
+            + Unpin,
+        _metadata: FieldMetadata,
+    ) -> Result<Self, TypedMultipartError> {
+        let chunk = chunks.next().await;
+        let chunk = match chunk {
+            Some(c) => match c {
+                Ok(b) => b,
+                Err(e) => return Err(e),
+            },
+            None => {
+                return Err(TypedMultipartError::Other {
+                    source: anyhow::Error::msg("Empty String"),
+                })
+            }
+        };
+        let count = match chunk.first() {
+            Some(c) => c,
+            None => {
+                return Err(TypedMultipartError::Other {
+                    source: anyhow::Error::msg("Empty String"),
+                })
+            }
+        };
+
+        let mut data = Vec::with_capacity(*count as usize);
+        let mut buf = Vec::with_capacity(chunks.size_hint().0);
+        while let Some(chunk) = chunks.next().await {
+            let _ = match chunk {
+                Ok(chunk) => buf.write_all(chunk.to_vec().as_slice()),
+                Err(e) => return Err(e),
+            };
+        }
+        let mut i = 0;
+        for _ in 0..*count {
+            let length = match buf.get(i) {
+                Some(l) => l,
+                None => {
+                    return Err(TypedMultipartError::Other {
+                        source: anyhow::Error::msg("Data ended too early"),
+                    })
+                }
+            };
+            data.push(
+                String::from_utf8(match buf.get(i..(i + *length as usize)) {
+                    Some(s) => s.to_vec(),
+                    None => {
+                        return Err(TypedMultipartError::Other {
+                            source: anyhow::Error::msg("Data ended too early"),
+                        })
+                    }
+                })
+                .map_err(|e| TypedMultipartError::Other {
+                    source: anyhow::Error::from(e),
+                })?,
+            );
+            i += *length as usize;
+        }
+        Ok(VecStr { data })
+    }
 }
 
 impl Type<Sqlite> for VecStr {
@@ -135,7 +211,7 @@ impl From<Vec<u8>> for VecStr {
 pub async fn create_post<'a>(
     State(config): State<SiteConfig>,
     user: User,
-    form: Form<PostCreateRequest>,
+    TypedMultipart(form): TypedMultipart<PostCreateRequest>,
 ) -> StatusCode {
     match query!(
         "INSERT INTO posts(name, content, tags, owner) VALUES(?1, ?2, ?3, ?4)",

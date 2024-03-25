@@ -1,8 +1,19 @@
+db_filename = "db.sqlite3"
 domain = "0.0.0.0:3000"
+site_path = "./example_site"
+create_user = false
 
-[routes]
-"/" = {path = "index.html"}
-"/blog" = {path = "blog.html"}
-"/sign_in" = {path = "sign_in.html"}
-"/sign_up" = {path = "sign_up.html"}
-"/navbar" = {path = "navbar.html"}
+[routes."/sign_in"]
+path = "sign_in.html"
+
+[routes."/navbar"]
+path = "navbar.html"
+
+[routes."/"]
+path = "index.html"
+
+[routes."/blog"]
+path = "blog.html"
+
+[routes."/sign_up"]
+path = "sign_up.html"

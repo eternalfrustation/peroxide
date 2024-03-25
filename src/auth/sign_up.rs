@@ -1,9 +1,21 @@
+use axum::{extract::State, http::StatusCode, Json};
+use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
+use clap::Parser;
+use rand::random;
+use serde::{Deserialize, Serialize};
+use sha3::Sha3_512;
+use sqlx::{prelude::FromRow, Encode};
+
+use sha3::Digest;
+
+use crate::config::SiteConfig;
+
+use super::user::{Rank, User, UserInfo};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum UserSignUpError {
     FailedHashing,
 }
-
 
 impl TryFrom<UserSignUp> for User {
     type Error = UserSignUpError;
@@ -29,15 +41,13 @@ impl TryFrom<UserSignUp> for User {
     }
 }
 
-
-#[derive(Deserialize, Serialize, Encode, FromRow, TryFromMultipart)]
+#[derive(Deserialize, Debug, Serialize, Encode, FromRow, TryFromMultipart, Clone)]
 pub struct UserSignUp {
-    name: String,
-    username: String,
-    pass: String,
-    email: String,
+    pub name: String,
+    pub username: String,
+    pub pass: String,
+    pub email: String,
 }
-
 
 pub async fn create_user(
     admin: User,
@@ -66,4 +76,3 @@ pub async fn create_user(
         }
     }
 }
-

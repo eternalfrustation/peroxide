@@ -1,6 +1,26 @@
-struct Keys {
-    encoding: EncodingKey,
-    decoding: DecodingKey,
+use base64::Engine;
+use once_cell::sync::Lazy;
+use sha3::Digest;
+use std::{fmt::Display, time::{Duration, SystemTime}};
+
+use axum::{
+    async_trait,
+    extract::{FromRequestParts, Query, State},
+    http::{request::Parts, StatusCode},
+    Json,
+};
+use axum_extra::extract::cookie::Cookie;
+use base64::engine::general_purpose;
+use jsonwebtoken::{DecodingKey, EncodingKey, Validation};
+use serde::{Deserialize, Serialize};
+use sha3::Sha3_512;
+use sqlx::query_as;
+
+use crate::config::SiteConfig;
+
+pub struct Keys {
+    pub encoding: EncodingKey,
+    pub decoding: DecodingKey,
 }
 
 // Keys for encoding JWTs
@@ -36,6 +56,15 @@ pub enum Rank {
     #[default]
     User,
     Admin,
+}
+
+impl Display for Rank {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match *self {
+            Self::User => "User",
+            Self::Admin => "Admin",
+        })
+    }
 }
 
 impl From<String> for Rank {
@@ -147,9 +176,8 @@ impl<'a> FromRequestParts<SiteConfig> for User {
     }
 }
 
-
 #[derive(Deserialize, Serialize, Clone, Debug)]
-struct UserToken {
+pub struct UserToken {
     username: String,
     sh_pass: String,
     exp: u64,
@@ -188,7 +216,6 @@ pub struct UserInfo {
     pub email: String,
     pub rank: Rank,
 }
-
 
 #[derive(Serialize, Deserialize)]
 pub struct UserGetRequest {

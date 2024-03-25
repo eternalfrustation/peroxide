@@ -1,7 +1,5 @@
 #![feature(exact_size_is_empty)]
 
-use axum::handler::Handler;
-use chrono::Utc;
 use log::error;
 
 use clap::Parser;
@@ -9,11 +7,8 @@ use clap::Parser;
 use peroxide::{config::PeroxideConfig, wordpress::WordpressSite};
 
 use peroxide::site::init_site;
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use tower_http::follow_redirect::policy::PolicyExt;
 
-use std::{borrow::BorrowMut, collections::HashMap, fmt::Debug, fs, str::FromStr};
+use std::{fmt::Debug, fs };
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -23,6 +18,8 @@ struct Args {
     wordpress_import: Option<String>,
     #[arg(short, long, default_value_t = String::from("./"))]
     wordpress_import_path: String,
+
+    create_user_for_site: Option<String>,
 }
 
 #[tokio::main]
@@ -32,7 +29,7 @@ async fn main() {
     match args.wordpress_import {
         Some(site) => {
             let wp_site = WordpressSite::from_site_url(site).await;
-            wp_site.save(args.wordpress_import_path);
+            let _ = wp_site.save(args.wordpress_import_path);
         }
         None => {
             let config: PeroxideConfig =

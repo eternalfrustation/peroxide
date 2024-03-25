@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, content, date, tags, owner, status FROM posts WHERE name IS ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "content",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "date",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "tags",
+        "ordinal": 4,
+        "type_info": "Blob"
+      },
+      {
+        "name": "owner",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "50e0beb82e0cd9b5da8f935419ce840dbb3cd12a48678438e987398e257d71f4"
+}

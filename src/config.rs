@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tinytemplate_async::TinyTemplate;
 
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PeroxideConfig {
     pub directories: Vec<String>,
@@ -26,6 +25,12 @@ pub struct SiteConfig {
     pub site_path: String,
     #[serde(skip)]
     pub templates: Arc<RwLock<TinyTemplate>>,
+    #[serde(default = "create_user_default")]
+    pub create_user: bool,
+}
+
+fn create_user_default() -> bool {
+    false
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -40,5 +45,6 @@ fn default_template() -> Option<String> {
 }
 
 fn db_default() -> String {
+
     "db.sqlite3".to_string()
 }
