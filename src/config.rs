@@ -59,8 +59,8 @@ fn db_default() -> String {
 }
 
 #[derive(Serialize, Deserialize)]
-struct ChangeDomainReq {
-    domain: String,
+pub struct ChangeDomainReq {
+    pub domain: String,
 }
 
 #[axum::debug_handler]
